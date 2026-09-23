@@ -2,6 +2,7 @@ import http from "node:http";
 import { URL } from "node:url";
 
 const PORT = Number(process.env.PORT || 8787);
+const SERPAPI_API_KEY = process.env.SERPAPI_API_KEY || "";
 const ALLOWED_ORIGINS = new Set(
   (process.env.ALLOWED_ORIGINS || "http://127.0.0.1:4173,http://localhost:4173")
     .split(",").map((value) => value.trim()).filter(Boolean)
@@ -64,6 +65,29 @@ const propertyMap = {
 };
 
 async function fetchTimeline(keywords, { geo, timeframe, property }) {
+  if (SERPAPI_API_KEY) {
+    const endpoint = new URL("https://serpapi.com/search.json");
+    endpoint.searchParams.set("engine", "google_trends");
+    endpoint.searchParams.set("q", keywords.join(","));
+    endpoint.searchParams.set("geo", geo);
+    endpoint.searchParams.set("date", timeframe);
+    endpoint.searchParams.set("hl", "vi");
+    endpoint.searchParams.set("tz", "-420");
+    endpoint.searchParams.set("data_type", "TIMESERIES");
+    endpoint.searchParams.set("api_key", SERPAPI_API_KEY);
+    const gprop = propertyMap[property] ?? "";
+    if (gprop) endpoint.searchParams.set("gprop", gprop);
+    const response = await fetch(endpoint, { signal: AbortSignal.timeout(25_000) });
+    const data = await response.json();
+    if (!response.ok || data.error) throw new Error(data.error || `SERPAPI_${response.status}`);
+    return (data.interest_over_time?.timeline_data || []).map((point) => ({
+      timestamp: Number(point.timestamp),
+      date: point.date,
+      values: Object.fromEntries(
+        keywords.map((keyword, index) => [keyword, Number(point.values?.[index]?.extracted_value ?? 0)])
+      ),
+    }));
+  }
   const request = {
     comparisonItem: keywords.map((keyword) => ({ keyword, geo, time: timeframe })),
     category: 0,
@@ -111,7 +135,7 @@ async function analyze(payload) {
   for (let index = 0; index < keywords.length; index += 5) batches.push(keywords.slice(index, index + 5));
   const series = [];
   for (const batch of batches) series.push({ keywords: batch, timeline: await fetchTimeline(batch, options) });
-  const result = { status: "success", source: "google-trends", generatedAt: new Date().toISOString(), cached: false, query: { keywords, ...options }, series };
+  const result = { status: "success", source: SERPAPI_API_KEY ? "serpapi-google-trends" : "google-trends", generatedAt: new Date().toISOString(), cached: false, query: { keywords, ...options }, series };
   cache.set(key, { createdAt: Date.now(), data: result });
   return result;
 }
@@ -136,4 +160,3 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, "0.0.0.0", () => console.log(`TrendScope API listening on http://0.0.0.0:${PORT}`));
-

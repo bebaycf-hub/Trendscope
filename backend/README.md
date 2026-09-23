@@ -1,11 +1,12 @@
 # TrendScope Trends API
 
-Backend không phụ thuộc thư viện ngoài, dùng API nội bộ của Google Trends để cung cấp dữ liệu cho TrendScope.
+Backend không phụ thuộc thư viện ngoài. Khi `SERPAPI_API_KEY` được cấu hình, backend sử dụng SerpApi Google Trends; nếu không, nó dùng adapter Google Trends trực tiếp làm phương án phát triển cục bộ.
 
 ## Chạy cục bộ
 
 ```powershell
 $env:ALLOWED_ORIGINS="http://127.0.0.1:4173"
+$env:SERPAPI_API_KEY="your_private_key"
 npm start
 ```
 
