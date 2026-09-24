@@ -177,7 +177,12 @@ tiếp thị liên kết</textarea><button class="drop" id="upload">⇧ Tải CS
           if (!response.ok) throw new Error(data.error || 'OPENAI_UNAVAILABLE');
           $('#reportSynthesis').innerHTML = `<b style="color:var(--violet)">✦ ChatGPT · Xếp hạng chọn lọc (${days} ngày)</b><ol>${(data.rankings || []).slice(0,7).map((item,index) => `<li><b>#${index+1} ${escapeHtml(item.keyword)}</b> · ${escapeHtml(item.reason || item.stage || 'Đủ tín hiệu')}</li>`).join('')}</ol>`;
           toast('ChatGPT đã hoàn tất chọn lọc key.');
-        } catch (error) { toast('ChatGPT chưa phản hồi. Kiểm tra cấu hình OPENAI_API_KEY của backend.'); }
+        } catch (error) {
+          const message = String(error?.message || 'OPENAI_UNAVAILABLE');
+          const limited = /429|quota|rate limit|billing|insufficient/i.test(message);
+          $('#reportSynthesis').innerHTML = `<b style="color:${limited ? '#ffb380' : '#ff8bb9'}">✦ ChatGPT chưa thể hoàn tất</b><p>${limited ? 'OpenAI API đang hết quota hoặc bị giới hạn tốc độ. Dữ liệu Google Trends của Studio vẫn được giữ nguyên; hãy nạp quota hoặc bật billing rồi thử lại.' : 'Không thể nhận phản hồi từ ChatGPT. Hãy kiểm tra kết nối backend và OPENAI_API_KEY rồi thử lại.'}</p><p class="sub">Mã phản hồi: ${escapeHtml(message)}</p>`;
+          toast(limited ? 'ChatGPT đang bị giới hạn quota (429).' : 'ChatGPT chưa phản hồi.');
+        }
         finally { button.disabled = false; button.textContent = '✦ Phân tích chọn lọc với ChatGPT'; }
       };
     }
