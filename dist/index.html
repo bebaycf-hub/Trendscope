@@ -122,4 +122,69 @@ tiếp thị liên kết</textarea><button class="drop" id="upload">⇧ Tải CS
   function showPage(page){$$('.workspace').forEach(x=>x.classList.toggle('active',x.id==='page-'+page));$$('[data-page]').forEach(x=>x.classList.toggle('active',x.dataset.page===page));history.replaceState(null,'','#'+page);scrollTo({top:0,behavior:'smooth'})}
   $$('[data-page]').forEach(b=>b.onclick=()=>{showPage(b.dataset.page);syncWorkspace();if(b.dataset.page==='geo')renderGeoReal();if(b.dataset.page==='reports')renderReports(activeReportFilter,$('#reportSearch').value)});$$('.action-toast').forEach(b=>b.onclick=()=>toast(b.textContent.trim()+' — đã sẵn sàng.'));$$('.report-filter').forEach(b=>b.onclick=()=>{$$('.report-filter').forEach(x=>{x.classList.remove('primary');x.classList.add('ghost')});b.classList.add('primary');b.classList.remove('ghost');renderReports(b.dataset.filter,$('#reportSearch').value)});$('#reportSearch').oninput=e=>renderReports(activeReportFilter,e.target.value);try{const saved=JSON.parse(localStorage.getItem('trendscopeState')||'null');if(saved?.keywords?.length)$('#keywords').value=saved.keywords.slice(0,50).join('\n');if(saved?.country&&$('#country').querySelector(`option[value="${saved.country}"]`))$('#country').value=saved.country;if(saved?.period)[...$('#period').options].some(o=>o.text===saved.period)&&($('#period').value=saved.period);if(saved?.property)[...$('#property').options].some(o=>o.text===saved.property)&&($('#property').value=saved.property)}catch{}try{const cached=JSON.parse(localStorage.getItem('trendscopeAnalysisCache')||'null');if(cached?.signature===currentSignature()&&Array.isArray(cached.values)&&cached.values.length===words().length&&cached.values.every(v=>Array.isArray(v)&&v.length)){values=cached.values;timelineDates=Array.isArray(cached.timelineDates)?cached.timelineDates:[];geoRegions=Array.isArray(cached.geoRegions)?cached.geoRegions:[];hasLiveData=true;$('#hint').textContent='Dữ liệu Google Trends đã lưu · '+new Date(cached.analyzedAt).toLocaleString('vi-VN')}}catch{}renderReports();render();if(location.hash&&$('#page-'+location.hash.slice(1))){showPage(location.hash.slice(1));if(location.hash==='#geo')renderGeoReal()}
   </script>
+  <script>
+  /* Report controls: persisted deletion, OpenAI ranking, and report horizons. */
+  (() => {
+    const deletedKey = 'trendscopeDeletedReportIds';
+    const deletedReports = () => new Set(JSON.parse(localStorage.getItem(deletedKey) || '[]'));
+    const removeDeletedCards = () => document.querySelectorAll('#reportGrid [data-report]').forEach(card => {
+      if (deletedReports().has(card.dataset.report)) card.remove();
+    });
+    const grid = document.querySelector('#reportGrid');
+    if (grid) new MutationObserver(removeDeletedCards).observe(grid, {childList:true, subtree:true});
+    removeDeletedCards();
+    document.addEventListener('click', event => {
+      const deleteButton = event.target.closest('[data-delete-report]');
+      if (!deleteButton) return;
+      const card = deleteButton.closest('[data-report]');
+      const id = card?.dataset.report;
+      if (!id || id === 'live') return;
+      event.preventDefault(); event.stopImmediatePropagation();
+      const removed = deletedReports(); removed.add(id);
+      localStorage.setItem(deletedKey, JSON.stringify([...removed]));
+      card.remove(); toast('Đã xóa báo cáo đã lưu.');
+    }, true);
+
+    const rankButton = document.querySelector('#geminiRank');
+    const title = document.querySelector('#reportSynthesis')?.closest('.panel')?.querySelector('h3');
+    if (rankButton) {
+      const horizon = document.createElement('select');
+      horizon.id = 'reportTrajectory'; horizon.className = 'search';
+      horizon.setAttribute('aria-label', 'Quỹ đạo báo cáo');
+      horizon.innerHTML = '<option value="7">Quỹ đạo 7 ngày</option><option value="30" selected>Quỹ đạo 30 ngày</option><option value="90">Quỹ đạo 90 ngày</option>';
+      horizon.style.cssText = 'width:100%;margin:0 0 10px';
+      rankButton.before(horizon);
+      rankButton.textContent = '✦ Phân tích chọn lọc với ChatGPT';
+      const updateTitle = () => { if (title) title.textContent = `Quỹ đạo ${horizon.value} ngày`; };
+      horizon.onchange = updateTitle; updateTitle();
+      rankButton.onclick = async () => {
+        if (!hasLiveData) { toast('Hãy phân tích dữ liệu Trends trước.'); return; }
+        const days = Number(horizon.value || 30), button = rankButton;
+        button.disabled = true; button.textContent = '◌ ChatGPT đang chọn lọc…';
+        try {
+          const response = await fetch(API_BASE + '/api/ai/rank', {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({
+              scope:{country:$('#country').value,period:$('#period').value,property:$('#property').value,trajectoryDays:days},
+              criteria:['Opportunity','Emerging','Momentum','Growth','Demand','Stability','Lowest Competition'],
+              keywords:analysis.map((item,index) => ({
+                keyword:item.keyword,current:item.current,mean:item.mean,peak:item.peak,velocity:item.velocity,score:item.score,noData:item.noData,
+                trajectory:(values[index] || []).slice(-days)
+              }))
+            })
+          });
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.error || 'OPENAI_UNAVAILABLE');
+          $('#reportSynthesis').innerHTML = `<b style="color:var(--violet)">✦ ChatGPT · Xếp hạng chọn lọc (${days} ngày)</b><ol>${(data.rankings || []).slice(0,7).map((item,index) => `<li><b>#${index+1} ${escapeHtml(item.keyword)}</b> · ${escapeHtml(item.reason || item.stage || 'Đủ tín hiệu')}</li>`).join('')}</ol>`;
+          toast('ChatGPT đã hoàn tất chọn lọc key.');
+        } catch (error) { toast('ChatGPT chưa phản hồi. Kiểm tra cấu hình OPENAI_API_KEY của backend.'); }
+        finally { button.disabled = false; button.textContent = '✦ Phân tích chọn lọc với ChatGPT'; }
+      };
+    }
+    const hint = document.querySelector('#hint');
+    if (hint) new MutationObserver(() => {
+      if (hasLiveData && location.hash === '#geo') renderGeoReal();
+    }).observe(hint, {childList:true, subtree:true, characterData:true});
+  })();
+  </script>
 </body></html>
