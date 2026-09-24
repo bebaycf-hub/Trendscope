@@ -66,7 +66,7 @@ tiếp thị liên kết</textarea><button class="drop" id="upload">⇧ Tải CS
   let values=[];
   let noDataKeywords=new Set();
   let analysis=[],hasLiveData=false,timelineDates=[],geoRegions=[],countryShapes=null,regionShapes=null;
-  const API_BASE=window.TRENDSCOPE_API_BASE||localStorage.getItem('trendscopeApiBase')||(location.hostname==='127.0.0.1'||location.hostname==='localhost'?'http://127.0.0.1:8787':'https://function-bun-production-43ee.up.railway.app');
+  const API_BASE=window.TRENDSCOPE_API_BASE||(location.hostname==='127.0.0.1'||location.hostname==='localhost'?'http://127.0.0.1:8787':'https://function-bun-production-43ee.up.railway.app');
   localStorage.removeItem('trendscopeAnalysisCache');
   function words(){return $('#keywords').value.split(/\n|,/).map(x=>x.trim()).filter(Boolean).filter((x,i,a)=>a.findIndex(y=>y.toLowerCase()===x.toLowerCase())===i).slice(0,50)}
   const countryNames={US:'Hoa Kỳ',VN:'Việt Nam',JP:'Nhật Bản',KR:'Hàn Quốc',SG:'Singapore',ID:'Indonesia',TH:'Thái Lan',MY:'Malaysia',PH:'Philippines',DE:'Đức',FR:'Pháp',NL:'Hà Lan',ES:'Tây Ban Nha',IT:'Ý',SE:'Thụy Điển',PL:'Ba Lan'};
@@ -173,7 +173,10 @@ tiếp thị liên kết</textarea><button class="drop" id="upload">⇧ Tải CS
               }))
             })
           });
-          const data = await response.json();
+          const raw = await response.text();
+          let data;
+          try { data = JSON.parse(raw); }
+          catch { throw new Error(`HTTP ${response.status}: ${raw.slice(0, 180) || 'Phản hồi không hợp lệ từ backend'}`); }
           if (!response.ok) throw new Error(data.error || 'GEMINI_UNAVAILABLE');
           $('#reportSynthesis').innerHTML = `<b style="color:var(--violet)">✦ Gemini · Xếp hạng chọn lọc (${days} ngày)</b><ol>${(data.rankings || []).slice(0,7).map((item,index) => `<li><b>#${index+1} ${escapeHtml(item.keyword)}</b> · ${escapeHtml(item.reason || item.stage || 'Đủ tín hiệu')}</li>`).join('')}</ol>`;
           toast('Gemini đã hoàn tất chọn lọc key.');
