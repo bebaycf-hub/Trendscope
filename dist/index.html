@@ -162,17 +162,21 @@ tiếp thị liên kết</textarea><button class="drop" id="upload">⇧ Tải CS
         const days = Number(horizon.value || 30), button = rankButton;
         button.disabled = true; button.textContent = '◌ Gemini đang chọn lọc…';
         try {
-          const response = await fetch(API_BASE + '/api/ai/rank', {
-            method:'POST', headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({
-              scope:{country:$('#country').value,period:$('#period').value,property:$('#property').value,trajectoryDays:days},
-              criteria:['Opportunity','Emerging','Momentum','Growth','Demand','Stability','Lowest Competition'],
-              keywords:analysis.map((item,index) => ({
-                keyword:item.keyword,current:item.current,mean:item.mean,peak:item.peak,velocity:item.velocity,score:item.score,noData:item.noData,
-                trajectory:(values[index] || []).slice(-days)
-              }))
-            })
+          const requestBody = JSON.stringify({
+            scope:{country:$('#country').value,period:$('#period').value,property:$('#property').value,trajectoryDays:days},
+            criteria:['Opportunity','Emerging','Momentum','Growth','Demand','Stability','Lowest Competition'],
+            keywords:analysis.map((item,index) => ({
+              keyword:item.keyword,current:item.current,mean:item.mean,peak:item.peak,velocity:item.velocity,score:item.score,noData:item.noData,
+              trajectory:(values[index] || []).slice(-days)
+            }))
           });
+          let response;
+          for (let attempt = 0; attempt < 2; attempt++) {
+            response = await fetch(API_BASE + '/api/ai/rank', {method:'POST',headers:{'Content-Type':'application/json'},body:requestBody});
+            if (response.status < 500 || attempt) break;
+            button.textContent = '◌ Đang khởi động Gemini, thử lại…';
+            await new Promise(resolve => setTimeout(resolve, 2500));
+          }
           const raw = await response.text();
           let data;
           try { data = JSON.parse(raw); }
