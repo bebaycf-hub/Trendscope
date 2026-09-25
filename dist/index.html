@@ -197,6 +197,27 @@ tiếp thị liên kết</textarea><button class="drop" id="upload">⇧ Tải CS
     if (hint) new MutationObserver(() => {
       if (hasLiveData && location.hash === '#geo') renderGeoReal();
     }).observe(hint, {childList:true, subtree:true, characterData:true});
+  const trendSortSelect = document.querySelector('#chartSort');
+  const trendSortGrid = document.querySelector('#individualCharts');
+  const applyTrendOrder = () => {
+    if (!trendSortSelect || trendSortSelect.value !== 'trend' || !trendSortGrid) return;
+    const rank = card => {
+      const label = card.querySelector('.key-chart-foot span')?.textContent || '';
+      if (label.includes('Đang tăng nhanh')) return 0;
+      if (label.includes('Trên mức ổn định')) return 1;
+      if (label.includes('Đang giảm')) return 2;
+      return 3;
+    };
+    const cards = [...trendSortGrid.querySelectorAll('.key-chart')];
+    const ordered = [...cards].sort((a, b) => rank(a) - rank(b));
+    if (ordered.some((card, index) => card !== cards[index])) ordered.forEach(card => trendSortGrid.appendChild(card));
+  };
+  if (trendSortSelect && !trendSortSelect.querySelector('option[value="trend"]')) {
+    const option = new Option('Xu hướng: tăng → ổn định → giảm', 'trend');
+    trendSortSelect.add(option, 1);
+  }
+  trendSortSelect?.addEventListener('change', () => requestAnimationFrame(applyTrendOrder));
+  if (trendSortGrid) new MutationObserver(applyTrendOrder).observe(trendSortGrid, { childList: true });
   })();
   </script>
 </body></html>
