@@ -10,8 +10,6 @@ Tài liệu này lưu quy trình duy trì, chỉnh sửa và xuất bản TrendS
 - Giao diện tĩnh chính: `dist/index.html`
 - Cấu hình xuất bản: `.openai/hosting.json`
 
-URL hiện tại có thể tiếp tục sử dụng bình thường. Tên miền tùy chỉnh `md.trendscope.vn` chỉ hoạt động sau khi chủ sở hữu tên miền thêm các bản ghi DNS xác minh; việc chưa cấu hình DNS không ảnh hưởng URL hiện tại.
-
 ## 2. Cách yêu cầu chỉnh sửa nhanh
 
 Không cần tự sửa mã. Chỉ cần mở một cuộc trò chuyện Codex và nêu rõ thay đổi mong muốn, ví dụ:
