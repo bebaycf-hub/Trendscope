@@ -179,13 +179,20 @@ tiếp thị liên kết</textarea><button class="drop" id="upload">⇧ Tải CS
         const days = Number(horizon.value || 30), button = rankButton;
         button.disabled = true; button.textContent = '◌ Gemini đang chọn lọc…';
         try {
+          const eligible = analysis.map((item,index) => ({...item,index,trajectory:(values[index] || []).slice(-days)})).filter(item => !item.noData && item.trajectory.some(value => Number(value) > 0) && item.velocity >= 0);
+          if (!eligible.length) {
+            $('#reportSynthesis').innerHTML = '<b style="color:#ffb380">✦ Chưa có key phù hợp để chọn lọc</b><p>Gemini chỉ phân tích key có dữ liệu và trạng thái “Đang tăng nhanh” hoặc “Trên mức ổn định”.</p>';
+            toast('Chưa có key đủ điều kiện cho báo cáo Gemini.');
+            return;
+          }
+          button.textContent = `◌ Gemini đang chọn lọc ${eligible.length} key…`;
           const requestBody = JSON.stringify({
             geminiApiKey:localStorage.getItem('trendscopeGeminiApiKey')||'',
             scope:{country:$('#country').value,period:$('#period').value,property:$('#property').value,trajectoryDays:days},
             criteria:['Opportunity','Emerging','Momentum','Growth','Demand','Stability','Lowest Competition'],
-            keywords:analysis.map((item,index) => ({
+            keywords:eligible.map(item => ({
               keyword:item.keyword,current:item.current,mean:item.mean,peak:item.peak,velocity:item.velocity,score:item.score,noData:item.noData,
-              trajectory:(values[index] || []).slice(-days)
+              trajectory:item.trajectory
             }))
           });
           let response;
@@ -200,7 +207,7 @@ tiếp thị liên kết</textarea><button class="drop" id="upload">⇧ Tải CS
           try { data = JSON.parse(raw); }
           catch { throw new Error(`HTTP ${response.status}: ${raw.slice(0, 180) || 'Phản hồi không hợp lệ từ backend'}`); }
           if (!response.ok) throw new Error(data.error || 'GEMINI_UNAVAILABLE');
-          $('#reportSynthesis').innerHTML = `<b style="color:var(--violet)">✦ Gemini · Xếp hạng chọn lọc (${days} ngày)</b><ol>${(data.rankings || []).slice(0,7).map((item,index) => `<li><b>#${index+1} ${escapeHtml(item.keyword)}</b> · ${escapeHtml(item.reason || item.stage || 'Đủ tín hiệu')}</li>`).join('')}</ol>`;
+          $('#reportSynthesis').innerHTML = `<b style="color:var(--violet)">✦ Gemini · Xếp hạng chọn lọc (${days} ngày)</b><p class="sub">Đã lọc ${eligible.length} key có dữ liệu: tăng nhanh hoặc trên mức ổn định.</p><ol>${(data.rankings || []).slice(0,7).map((item,index) => `<li><b>#${index+1} ${escapeHtml(item.keyword)}</b> · ${escapeHtml(item.reason || item.stage || 'Đủ tín hiệu')}</li>`).join('')}</ol>`;
           toast('Gemini đã hoàn tất chọn lọc key.');
         } catch (error) {
           const message = String(error?.message || 'GEMINI_UNAVAILABLE');
